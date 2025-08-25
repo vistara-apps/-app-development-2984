@@ -1,84 +1,108 @@
-import React, { useRef, useEffect } from 'react';
-import { X, Minimize, Maximize } from 'lucide-react';
-import { useChat } from '../../contexts/ChatContext';
+import React, { useState, useRef, useEffect } from 'react';
+import { X, Minimize, Maximize, Trash2 } from 'lucide-react';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { ChatTypingIndicator } from './ChatTypingIndicator';
+import { ChatOnboarding } from './ChatOnboarding';
+import { useChat } from '../../contexts/ChatContext';
+import { hasCompletedOnboarding, markOnboardingComplete } from '../../lib/chatOnboarding';
 
 export const ChatContainer = ({ isOpen, onClose, minimized, onMinimize, onMaximize }) => {
-  const { messages, isTyping } = useChat();
+  const { messages, isTyping, clearChat } = useChat();
   const messagesEndRef = useRef(null);
-
-  // Auto-scroll to bottom when new messages arrive
+  const [showOnboarding, setShowOnboarding] = useState(!hasCompletedOnboarding());
+  
+  // Scroll to bottom when messages change or when typing indicator appears/disappears
   useEffect(() => {
-    if (messagesEndRef.current && !minimized) {
+    if (messagesEndRef.current && isOpen && !minimized) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isTyping, minimized]);
-
-  if (!isOpen) return null;
-
-  if (minimized) {
-    return (
-      <div className="fixed bottom-4 right-4 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full p-3 shadow-lg cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 animate-pulse" onClick={onMaximize}>
-        <div className="w-10 h-10 flex items-center justify-center text-white">
-          <span className="text-xl font-bold">AI</span>
-        </div>
-      </div>
-    );
+  }, [messages, isTyping, isOpen, minimized]);
+  
+  // Handle onboarding completion
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    markOnboardingComplete();
+  };
+  
+  if (!isOpen) {
+    return null;
   }
-
+  
   return (
-    <div className="fixed bottom-4 right-4 w-[380px] h-[600px] max-h-[80vh] bg-surface border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden z-50 animate-slide-up">
-      {/* Chat header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-          <h3 className="text-white font-bold">PredictionForge AI</h3>
+    <div className={`
+      fixed z-50 transition-all duration-300 ease-in-out
+      ${minimized 
+        ? 'bottom-4 right-4 w-60 h-12 rounded-full shadow-md' 
+        : 'bottom-4 right-4 w-96 h-[600px] max-h-[80vh] rounded-2xl shadow-xl'
+      }
+    `}>
+      {/* Minimized state */}
+      {minimized && (
+        <div 
+          onClick={onMaximize}
+          className="w-full h-full bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full flex items-center justify-between px-4 cursor-pointer"
+        >
+          <span className="text-white font-medium truncate">PredictionForge AI</span>
+          <Maximize size={18} className="text-white" />
         </div>
-        <div className="flex items-center space-x-2">
-          <button 
-            onClick={onMinimize}
-            className="text-white/80 hover:text-white transition-colors"
-          >
-            <Minimize size={18} />
-          </button>
-          <button 
-            onClick={onClose}
-            className="text-white/80 hover:text-white transition-colors"
-          >
-            <X size={18} />
-          </button>
-        </div>
-      </div>
-
-      {/* Messages container */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-        {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-6">
-            <div className="w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full flex items-center justify-center mb-4">
-              <span className="text-2xl text-white">🚀</span>
+      )}
+      
+      {/* Expanded state */}
+      {!minimized && (
+        <div className="flex flex-col h-full bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-indigo-600 to-purple-600">
+            <h3 className="text-white font-medium">PredictionForge AI</h3>
+            
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => clearChat()}
+                className="text-white/70 hover:text-white transition-colors"
+                aria-label="Clear chat"
+              >
+                <Trash2 size={16} />
+              </button>
+              
+              <button
+                onClick={onMinimize}
+                className="text-white/70 hover:text-white transition-colors"
+                aria-label="Minimize chat"
+              >
+                <Minimize size={16} />
+              </button>
+              
+              <button
+                onClick={onClose}
+                className="text-white/70 hover:text-white transition-colors"
+                aria-label="Close chat"
+              >
+                <X size={16} />
+              </button>
             </div>
-            <h3 className="text-lg font-bold mb-2">PredictionForge AI Assistant</h3>
-            <p className="text-text-secondary text-sm">
-              I can help you create predictions, explain how the platform works, and guide you through the MVP generation process.
-            </p>
           </div>
-        ) : (
-          <>
+          
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 chat-scrollbar">
+            {showOnboarding && (
+              <ChatOnboarding onComplete={handleOnboardingComplete} />
+            )}
+            
             {messages.map((message, index) => (
               <ChatMessage key={index} message={message} />
             ))}
+            
             {isTyping && <ChatTypingIndicator />}
+            
             <div ref={messagesEndRef} />
-          </>
-        )}
-      </div>
-
-      {/* Input area */}
-      <div className="border-t border-border p-4 bg-surface">
-        <ChatInput />
-      </div>
+          </div>
+          
+          {/* Input */}
+          <div className="p-3 border-t border-gray-200 dark:border-gray-800">
+            <ChatInput />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
